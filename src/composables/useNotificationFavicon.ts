@@ -1,4 +1,4 @@
-import { useFavicon } from "@vueuse/core";
+import { useFavicon, until } from "@vueuse/core";
 import { watch, ref, computed } from "vue";
 
 type Position =
@@ -8,96 +8,113 @@ type Position =
   | "bottomLeft"
   | "center";
 
-export default function useNotificationFavicon(src: string) {
-  const options: {
-    size: number;
-    position: Position;
-    color: string;
-    speed: number;
-    blink: boolean;
-  } = {
-    size: 8,
-    position: "bottomRight",
-    color: "red",
-    speed: 500,
-    blink: true,
-  };
+type positionMapValue = [number, number];
+
+interface UseNotificationFaviconOptions {
+  size?: number;
+  position?: Position;
+  color?: string;
+  speed?: number;
+  blink?: boolean;
+}
+
+export default function useNotificationFavicon(
+  src: string,
+  options: UseNotificationFaviconOptions = {}
+) {
+  const {
+    size = 8,
+    position = "bottomRight",
+    color = "red",
+    speed = 1000,
+    blink = true,
+  } = options;
 
   let interval = 0;
   const favicon = useFavicon();
   const plainFavicon = ref(src);
   const isNotifying = ref(false);
-  const imgSize = ref(0);
+  const imageElement = ref<HTMLImageElement | null>(null);
 
-  const positions = computed((): number[] => {
-    const map = {
-      topLeft: [options.size, options.size],
-      topRight: [imgSize.value - options.size, options.size],
-      bottomLeft: [options.size, imgSize.value - options.size],
-      bottomRight: [imgSize.value - options.size, imgSize.value - options.size],
+  const imgSize = computed(() => imageElement.value?.width || 0);
+  const positions = computed(() => {
+    const map: { [key: string]: positionMapValue } = {
+      topLeft: [size, size],
+      topRight: [imgSize.value - size, size],
+      bottomLeft: [size, imgSize.value - size],
+      bottomRight: [imgSize.value - size, imgSize.value - size],
       center: [imgSize.value / 2, imgSize.value / 2],
     };
-    return map[options.position];
+    return map[position];
   });
 
   favicon.value = src;
 
-  const drawNotification = () => {
+  const drawNotification = async () => {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
-    const img = new Image();
-    img.src = favicon.value || "";
-    img.onload = function () {
-      imgSize.value = img.width;
-      canvas.width = img.width;
-      canvas.height = img.width;
-      ctx.drawImage(img, 0, 0);
-      const radius = options.size;
 
-      ctx.beginPath();
-      ctx.arc(
-        positions.value[0],
-        positions.value[1],
-        radius,
-        0,
-        2 * Math.PI,
-        false
-      );
-      ctx.fillStyle = options.color;
-      ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = options.color;
-      ctx.stroke();
-      favicon.value = canvas.toDataURL("image/x-icon");
-    };
+    // wait for favicon image to load
+    await until(imageElement).toBeTruthy();
+    const img = imageElement.value as HTMLImageElement;
+    canvas.width = imgSize.value;
+    canvas.height = imgSize.value;
+    ctx.drawImage(img, 0, 0);
+
+    // circle specs
+    const arcX = positions.value[0];
+    const arcY = positions.value[1];
+    const radius = size;
+
+    // Draw circle
+    ctx.beginPath();
+    ctx.arc(arcX, arcY, radius, 0, 2 * Math.PI, false);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+
+    // set canvas drawing as favicon
+    favicon.value = canvas.toDataURL("image/x-icon");
   };
 
   const drawPlainFavicon = () => {
     favicon.value = plainFavicon.value;
   };
 
-  const notify = () => {
+  const notify = async () => {
     isNotifying.value = true;
-    drawNotification();
-    if (!options.blink) return;
-    interval = setInterval(() => {
-      drawPlainFavicon();
-      setTimeout(() => {
-        if (isNotifying.value) drawNotification();
-      }, options.speed / 2);
-    }, options.speed);
+    doBlink();
+    interval = setInterval(doBlink, speed);
   };
+
+  const doBlink = () => {
+    if (isNotifying.value) drawNotification();
+    if (!blink) return;
+    setTimeout(() => drawPlainFavicon(), speed / 2);
+  };
+
   const cancel = () => {
     isNotifying.value = false;
-    setTimeout(() => drawPlainFavicon(), options.speed / 2);
+    setTimeout(() => drawPlainFavicon(), speed / 2);
     drawPlainFavicon();
     interval ? clearInterval(interval) : null;
   };
 
+  const initImageElement = (src: string) => {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => (imageElement.value = img);
+  };
+
   watch(plainFavicon, () => {
     favicon.value = plainFavicon.value;
+    initImageElement(plainFavicon.value);
     if (isNotifying.value) notify();
   });
+
+  initImageElement(src);
 
   return {
     notify,
