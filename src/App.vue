@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import useNotificationFavicon from "@/composables/useNotificationFavicon";
-const { notify, favicon, cancel } = useNotificationFavicon("/favicon.ico");
+import useAlertFavicon from "@/composables/useAlertFavicon";
+const { notify, favicon, cancel } = useAlertFavicon("/favicon.ico");
 </script>
 
 <template>

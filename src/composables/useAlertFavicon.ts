@@ -10,7 +10,7 @@ type Position =
 
 type positionMapValue = [number, number];
 
-interface UseNotificationFaviconOptions {
+interface UseAlertFaviconOptions {
   size?: number;
   position?: Position;
   color?: string;
@@ -18,9 +18,9 @@ interface UseNotificationFaviconOptions {
   blink?: boolean;
 }
 
-export default function useNotificationFavicon(
+export default function useAlertFavicon(
   src: string,
-  options: UseNotificationFaviconOptions = {}
+  options: UseAlertFaviconOptions = {}
 ) {
   const {
     size = 8,
@@ -50,7 +50,7 @@ export default function useNotificationFavicon(
 
   favicon.value = src;
 
-  const drawNotification = async () => {
+  const drawAlert = async () => {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 
@@ -90,7 +90,7 @@ export default function useNotificationFavicon(
   };
 
   const doBlink = () => {
-    if (isNotifying.value) drawNotification();
+    if (isNotifying.value) drawAlert();
     if (!blink) return;
     setTimeout(() => drawPlainFavicon(), speed / 2);
   };
